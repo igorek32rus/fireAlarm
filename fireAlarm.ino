@@ -1,4 +1,4 @@
-#include <SoftwareSerial.h>
+// #include <SoftwareSerial.h>
 #include <GyverEncoder.h>
 #include <microLED.h>
 #include <avr/eeprom.h>
@@ -16,8 +16,8 @@
 #define BTN1_PIN        3     // Пин кнопки 1 (выключить сирену)
 #define BTN2_PIN        4     // Пин кнопки 2 (общий сброс)
 
-#define SIM_RX_PIN      18    // Пин RX ардуино
-#define SIM_TX_PIN      19    // Пин TX ардуино
+#define SIM_RX_PIN      8     // Пин RX ардуино
+#define SIM_TX_PIN      9     // Пин TX ардуино
 
 #define COUNT_SENSORS   16    // Количество датчиков
 #define FIRE_VALUE      100   // Пороговое значение при пожаре
@@ -28,7 +28,7 @@
 #define TIME_BREAK      1000  // Время ожидания сигнала об обрыве
 
 #define TIME_CHANGE_MODE  250  // Время смены режима в меню (мигание)
-#define PHONE_NUMBER      "+79997051047"  // Номер с которым будет взаимодействие
+#define PHONE_NUMBER      "+79997053010"  // Номер с которым будет взаимодействие
 
 #define SENSOR_OK             0     // Статус ОК
 #define SENSOR_WAITBREAK      1     // Статус Обрыв (Проверка)
@@ -149,7 +149,7 @@ long int menuTimeMode = 0;              // время смены режима
 microLED<COUNT_SENSORS, RGB_PIN, MLED_NO_CLOCK, LED_WS2818, ORDER_GRB, CLI_AVER> strip;   // RGB лента
 Encoder enc(ENC_S1_PIN, ENC_S2_PIN, ENC_SW_PIN);    // Энкодер
 
-SoftwareSerial simSerial(SIM_RX_PIN, SIM_TX_PIN);   // RX, TX
+// SoftwareSerial simSerial(SIM_RX_PIN, SIM_TX_PIN);   // RX, TX
 
 void setup() {
   strip.clear();              // выключить RGB
@@ -165,8 +165,11 @@ void setup() {
 
   enc.setType(TYPE2);       // тип энкодера
 
-  simSerial.begin(9600);    // Скорость порта для связи Arduino с GSM модулем
-  simSerial.println("AT");  // проверочная команда на SIM
+  Serial.begin(9600);
+  Serial1.begin(9600);
+
+  // simSerial.begin(9600);    // Скорость порта для связи Arduino с GSM модулем
+  // simSerial.println("AT");  // проверочная команда на SIM
 
   if (FIRST_START) {
     for (byte i = 0; i < COUNT_SENSORS; i++) {
@@ -260,8 +263,8 @@ void loop() {
   // Надо ли позвонить
   for (byte i = 0; i < COUNT_SENSORS; i++) {
     if (fireSensors[i].getState() && fireSensors[i].getStatus() == SENSOR_FIRE && !fireSensors[i].getNotify()) {
-      String call_command = strcat(strcat("ATD", PHONE_NUMBER), ";");
-      simSerial.println(call_command);
+      String call_command = String("ATD") + String(PHONE_NUMBER) + String(";");
+      Serial1.println(call_command);
 
       fireSensors[i].setNotify();
 
@@ -364,15 +367,19 @@ void loop() {
   }
 
   // Ответ от SIM500l
-  if (simSerial.available()) {
-    //Serial.write(mySerial.read());
+  while (Serial1.available()) {
+    // Serial.write(simSerial.read());
     String resp = "";              // Переменная для хранения ответа
-    resp = simSerial.readString();
+    resp = Serial1.readString();
+    String str = "+CLIP: \"" + String(PHONE_NUMBER) + String("\"");
+    Serial.println(resp);
 
     // если в выводе значится номер телефона, вырубаем сирену
-    if (resp.lastIndexOf(PHONE_NUMBER) >= 0) {
+    if (resp.lastIndexOf(str) >= 0) {
+      Serial.println("Siren off");
       digitalWrite(SIREN_PIN, LOW);
-      simSerial.println("ATH0");    // сбросить вызов
+      // simSerial.println("ATH0");    // сбросить вызов
+      Serial1.println("ATH0");    // сбросить вызов
     }
   }
 
@@ -399,6 +406,7 @@ void menu(bool clicked) {
   if (enc.isHolded()) {
     eeprom_write_block((void*)&dataStates, 0, sizeof(dataStates));  // сохраняем изменения
     menuOpened = false;   // на удержание выход из меню
+    menuPos = 0;
   }
 
 }
