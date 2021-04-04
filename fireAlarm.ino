@@ -191,7 +191,7 @@ void setup() {
 }
 
 void loop() {
-  if (!reloadSensors) {   // если не выполняется перезагрузка
+  if (!reloadSensors && !resetSystem) {   // если не выполняется перезагрузка
 
     // читаем все датчики
     for (byte i = 0; i < COUNT_SENSORS; i++) {
@@ -214,7 +214,7 @@ void loop() {
 
 
       /* ПРОВЕРКА НА ОБРЫВ */
-      if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_WAITBREAK)) {
+      if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_BREAK)) {
         // запуск проверки на обрыв
         fireSensors[i].setStatus(newStatus);
         fireSensors[i].setBreakTime();
@@ -261,7 +261,7 @@ void loop() {
   }
 
   // Надо ли позвонить
-  for (byte i = 0; i < COUNT_SENSORS; i++) {
+  for (byte i = 0; i < COUNT_SENSORS && !resetSystem; i++) {
     if (fireSensors[i].getState() && fireSensors[i].getStatus() == SENSOR_FIRE && !fireSensors[i].getNotify()) {
       String call_command = String("ATD") + String(PHONE_NUMBER) + String(";");
       Serial1.println(call_command);
@@ -289,7 +289,7 @@ void loop() {
     menu(clicked);    // вызываем меню с сотоянием клика энкодера
   }
 
-  if (menuOpened) {
+  if (menuOpened && !resetSystem) {
     // ВКЛЮЧЕНИЕ СВЕТОДИОДОВ РЕЖИМЕ РАБОТЫ - МЕНЮ
     if (abs(millis() - menuTimeMode) > TIME_CHANGE_MODE) {
       menuTimeMode = millis();
@@ -315,7 +315,7 @@ void loop() {
     }
   }
 
-  if (!menuOpened) {
+  if (!menuOpened && !resetSystem) {
     // ВКЛЮЧЕНИЕ СВЕТОДИОДОВ В ОБЫЧНОМ РЕЖИМЕ РАБОТЫ
     for (byte i = 0; i < COUNT_SENSORS; i++) {
       if (!fireSensors[i].getState()) {
@@ -326,7 +326,7 @@ void loop() {
 
       if (fireSensors[i].getStatus() == SENSOR_BREAK) {
         // ВКЛ ЖЕЛТЫЙ
-        strip.leds[i] = mRGB(255, 255, 0);
+        strip.leds[i] = mRGB(255, 200, 0);
       } else if (fireSensors[i].getStatus() == SENSOR_SHORT_CIRCUIT) {
         // ВКЛ СИНИЙ
         strip.leds[i] = mRGB(0, 0, 255);
@@ -358,6 +358,7 @@ void loop() {
     digitalWrite(RELAY_12V_PIN, HIGH);    // Выключить датчики
     digitalWrite(SIREN_PIN, LOW);         // Выключить сирену
     strip.clear();  // очистить RGB
+    strip.show();   // вывод изменений на ленту
   }
 
   // если был запущен сброс системы, спустя TIME_RELOAD - перезагрузка программы
@@ -367,7 +368,7 @@ void loop() {
   }
 
   // Ответ от SIM500l
-  while (Serial1.available()) {
+  while (!resetSystem && Serial1.available()) {
     // Serial.write(simSerial.read());
     String resp = "";              // Переменная для хранения ответа
     resp = Serial1.readString();
