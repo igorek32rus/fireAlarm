@@ -133,8 +133,10 @@ void FireSensor::setNotify() {
 
 void(* resetFunc) (void) = 0;           // функция "программного ресета"
 
-bool reloadSensors = false;             // перезагрузка?
-long int timeStartReloading = 0;        // время запуска перезагрузки
+bool reloadSensors = false;             // перезагрузка датчиков?
+unsigned long timeStartReloading = 0;   // время запуска перезагрузки датчиков
+bool resetSystem = false;               // перезагрузка системы?
+unsigned long timeStartReset = 0;       // время запуска перезагрузки системы
 bool stateSiren = false;                // состояние сирены
 
 bool dataStates[COUNT_SENSORS];         // массив состояний (вкл/выкл)
@@ -347,9 +349,17 @@ void loop() {
   }
 
   if (digitalRead(BTN2_PIN) == HIGH) {    // Запустить сброс
+    resetSystem = true;
+    timeStartReset = millis();
+
+    digitalWrite(RELAY_12V_PIN, HIGH);    // Выключить датчики
+    digitalWrite(SIREN_PIN, LOW);         // Выключить сирену
+    strip.clear();  // очистить RGB
+  }
+
+  // если был запущен сброс системы, спустя TIME_RELOAD - перезагрузка программы
+  if (resetSystem && abs(millis() - timeStartReset) > TIME_RELOAD) {
     digitalWrite(RELAY_12V_PIN, LOW);
-    digitalWrite(SIREN_PIN, LOW);
-    strip.clear();  // очистить
     resetFunc();
   }
 
