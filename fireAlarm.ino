@@ -1,4 +1,3 @@
-// #include <SoftwareSerial.h>
 #include <GyverEncoder.h>
 #include <microLED.h>
 #include <avr/eeprom.h>
@@ -15,9 +14,6 @@
 
 #define BTN1_PIN        3     // Пин кнопки 1 (выключить сирену)
 #define BTN2_PIN        4     // Пин кнопки 2 (общий сброс)
-
-#define SIM_RX_PIN      8     // Пин RX ардуино
-#define SIM_TX_PIN      9     // Пин TX ардуино
 
 #define COUNT_SENSORS   16    // Количество датчиков
 #define FIRE_VALUE      100   // Пороговое значение при пожаре
@@ -149,8 +145,6 @@ long int menuTimeMode = 0;              // время смены режима
 microLED<COUNT_SENSORS, RGB_PIN, MLED_NO_CLOCK, LED_WS2818, ORDER_GRB, CLI_AVER> strip;   // RGB лента
 Encoder enc(ENC_S1_PIN, ENC_S2_PIN, ENC_SW_PIN);    // Энкодер
 
-// SoftwareSerial simSerial(SIM_RX_PIN, SIM_TX_PIN);   // RX, TX
-
 void setup() {
   strip.clear();              // выключить RGB
   strip.setBrightness(25);    // яркость RGB (0-255)
@@ -165,11 +159,8 @@ void setup() {
 
   enc.setType(TYPE2);       // тип энкодера
 
-  Serial.begin(9600);
+  // Serial.begin(9600);
   Serial1.begin(9600);
-
-  // simSerial.begin(9600);    // Скорость порта для связи Arduino с GSM модулем
-  // simSerial.println("AT");  // проверочная команда на SIM
 
   if (FIRST_START) {
     for (byte i = 0; i < COUNT_SENSORS; i++) {
@@ -311,7 +302,6 @@ void loop() {
       strip.show();   // вывод изменений на ленту
       unsigned long timeWait = micros();
       while (abs(micros() - timeWait) < 40) {}  // для последующего вывода нужна задержка 40 мксек минимум
-      // delay(1);       // для последующего вывода нужна задержка 40 мксек минимум
     }
   }
 
@@ -342,7 +332,6 @@ void loop() {
     strip.show();   // вывод изменений на ленту
     unsigned long timeWait = micros();
     while (abs(micros() - timeWait) < 40) {}  // для последующего вывода нужна задержка 40 мксек минимум
-    // delay(1);
   }
 
 
@@ -369,23 +358,16 @@ void loop() {
 
   // Ответ от SIM500l
   while (!resetSystem && Serial1.available()) {
-    // Serial.write(simSerial.read());
     String resp = "";              // Переменная для хранения ответа
     resp = Serial1.readString();
     String str = "+CLIP: \"" + String(PHONE_NUMBER) + String("\"");
-    Serial.println(resp);
 
     // если в выводе значится номер телефона, вырубаем сирену
     if (resp.lastIndexOf(str) >= 0) {
-      Serial.println("Siren off");
       digitalWrite(SIREN_PIN, LOW);
-      // simSerial.println("ATH0");    // сбросить вызов
       Serial1.println("ATH0");    // сбросить вызов
     }
   }
-
-  // if (Serial.available())
-  //   mySerial.write(Serial.read());
 }
 
 void menu(bool clicked) {
