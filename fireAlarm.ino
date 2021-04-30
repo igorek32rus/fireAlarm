@@ -4,16 +4,16 @@
 
 #define FIRST_START     0     // ПРИ ПЕРВОЙ ЗАГРУЗКЕ ИЛИ СМЕНЕ КОЛ-ВА ДАТЧИКОВ ПОСТАВИТЬ 1, ПОСЛЕ ЭТОГО ПЕРЕПРОШИТЬ НА 0
 
-#define RELAY_12V_PIN   10    // Пин реле
-#define SIREN_PIN       11    // Пин сирены
-#define RGB_PIN         2     // Пин RGB
+#define RELAY_12V_PIN   48    // Пин реле
+#define SIREN_PIN       46    // Пин сирены
+#define RGB_PIN         32     // Пин RGB
 
-#define ENC_S1_PIN      30    // Пин энкодера S1
-#define ENC_S2_PIN      28    // Пин энкодера S2
-#define ENC_SW_PIN      26    // Пин энкодера Key
+#define ENC_S1_PIN      36    // Пин энкодера S1
+#define ENC_S2_PIN      34    // Пин энкодера S2
+#define ENC_SW_PIN      38    // Пин энкодера Key
 
-#define BTN1_PIN        3     // Пин кнопки 1 (выключить сирену)
-#define BTN2_PIN        4     // Пин кнопки 2 (общий сброс)
+#define BTN1_PIN        40     // Пин кнопки 1 (выключить сирену)
+#define BTN2_PIN        42     // Пин кнопки 2 (общий сброс)
 
 #define COUNT_SENSORS   16    // Количество датчиков
 #define FIRE_VALUE      100   // Пороговое значение при пожаре
@@ -24,7 +24,7 @@
 #define TIME_BREAK      1000  // Время ожидания сигнала об обрыве
 
 #define TIME_CHANGE_MODE  250  // Время смены режима в меню (мигание)
-#define PHONE_NUMBER      "+79997053010"  // Номер с которым будет взаимодействие
+#define PHONE_NUMBER      "+79997051047"  // Номер с которым будет взаимодействие
 
 #define SENSOR_OK             0     // Статус ОК
 #define SENSOR_WAITBREAK      1     // Статус Обрыв (Проверка)
@@ -142,12 +142,19 @@ byte menuPos = 0;                       // позиция курсора мен�
 bool menuMode = false;                  // режим меню
 long int menuTimeMode = 0;              // время смены режима
 
+bool stateRelay = true;
+
+unsigned long timeEndKZ = 0;
+unsigned long timeEndBreak = 0;
+
+unsigned long timeEndReload = 0;
+
 microLED<COUNT_SENSORS, RGB_PIN, MLED_NO_CLOCK, LED_WS2818, ORDER_GRB, CLI_AVER> strip;   // RGB лента
 Encoder enc(ENC_S1_PIN, ENC_S2_PIN, ENC_SW_PIN);    // Энкодер
 
 void setup() {
   strip.clear();              // выключить RGB
-  strip.setBrightness(25);    // яркость RGB (0-255)
+  strip.setBrightness(150);    // яркость RGB (0-255)
 
   pinMode(RELAY_12V_PIN, OUTPUT);   // Инициализация реле
   pinMode(SIREN_PIN, OUTPUT);       // Инициализация сирены
@@ -179,64 +186,93 @@ void setup() {
     fireSensors[i].setState(dataStates[i]);
   }
 
+  digitalWrite(RELAY_12V_PIN, HIGH);   // переводим состояние реле в постоянно вкл
 }
 
 void loop() {
   if (!reloadSensors && !resetSystem) {   // если не выполняется перезагрузка
+    if (abs(millis() - timeEndReload) > TIME_FIRE) {
+      // читаем все датчики
+      for (byte i = 0; i < COUNT_SENSORS; i++) {
+        if (!fireSensors[i].getState()) continue;   // если датчик выключен, переходим к следующему
 
-    // читаем все датчики
-    for (byte i = 0; i < COUNT_SENSORS; i++) {
-      if (!fireSensors[i].getState()) continue;   // если датчик выключен, переходим к следующему
+        byte newStatus = fireSensors[i].updateStatus();
+        bool changes = false;
 
-      byte newStatus = fireSensors[i].updateStatus();
+        if (newStatus != SENSOR_SHORT_CIRCUIT && fireSensors[i].getStatus() == SENSOR_SHORT_CIRCUIT) {
+          timeEndKZ = millis();
+        }
 
-      /* ПРОВЕРКА НА ПОЖАР */
-      if ((newStatus == SENSOR_WAITFIRE) && (fireSensors[i].getStatus() != SENSOR_WAITFIRE) && (fireSensors[i].getStatus() != SENSOR_FIRE)) {
-        fireSensors[i].setStatus(newStatus);
-        fireSensors[i].setFireTime();
-        reloadSensors = true;
-      } else if ((newStatus == SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) < TIME_FIRE)) {
-        // ПОВТОРНОЕ СРАБАТЫВАНИЕ
-        fireSensors[i].setStatus(SENSOR_FIRE);
-      } else if ((newStatus != SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) > TIME_FIRE)) {
-        // Время на повторное срабатывание вышло
-        fireSensors[i].setStatus(newStatus);
+        if (newStatus != SENSOR_WAITBREAK && fireSensors[i].getStatus() == SENSOR_BREAK) {
+          timeEndBreak = millis();
+        }
+
+        /* ПРОВЕРКА НА ПОЖАР */
+        if (abs(millis() - timeEndKZ > 1000) && abs(millis() - timeEndBreak > 1000)) {
+          if ((newStatus == SENSOR_WAITFIRE) && (fireSensors[i].getStatus() != SENSOR_WAITFIRE) && (fireSensors[i].getStatus() != SENSOR_FIRE)) {
+            fireSensors[i].setStatus(newStatus);
+            fireSensors[i].setFireTime();
+            reloadSensors = true;
+            changes = true;
+          } else if ((newStatus == SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) < TIME_FIRE) && abs(millis() - fireSensors[i].getFireTime() > TIME_RELOAD + 1000)) {
+            // ПОВТОРНОЕ СРАБАТЫВАНИЕ
+            fireSensors[i].setStatus(SENSOR_FIRE);
+            changes = true;
+          } else if ((newStatus != SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) > TIME_FIRE)) {
+            // Время на повторное срабатывание вышло
+            fireSensors[i].setStatus(newStatus);
+            changes = true;
+          }
+        }
+
+
+
+        if (abs(millis() - fireSensors[i].getFireTime()) > TIME_FIRE) {
+          /* ПРОВЕРКА НА ОБРЫВ */
+          if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_BREAK)) {
+            // запуск проверки на обрыв
+            fireSensors[i].setStatus(newStatus);
+            fireSensors[i].setBreakTime();
+            changes = true;
+          } else if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) > TIME_BREAK)) {
+            // Обрыв! Время вышло...
+            fireSensors[i].setStatus(SENSOR_BREAK);
+            changes = true;
+          } else if ((newStatus != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) < TIME_BREAK)) {
+            // Обрыва нет
+            fireSensors[i].setStatus(newStatus);
+            changes = true;
+          }
+        }
+
+        /* ПРОВЕРКА НА КЗ */
+        if (abs(millis() - fireSensors[i].getFireTime()) > TIME_FIRE) {
+          if (newStatus == SENSOR_SHORT_CIRCUIT) {
+            fireSensors[i].setStatus(newStatus);
+          }
+
+          /* ПРОВЕРКА НА ОК */
+          if (newStatus == SENSOR_OK) {
+            fireSensors[i].setStatus(newStatus);
+          }
+        }
+
       }
-
-
-      /* ПРОВЕРКА НА ОБРЫВ */
-      if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_BREAK)) {
-        // запуск проверки на обрыв
-        fireSensors[i].setStatus(newStatus);
-        fireSensors[i].setBreakTime();
-      } else if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) > TIME_BREAK)) {
-        // Обрыв! Время вышло...
-        fireSensors[i].setStatus(SENSOR_BREAK);
-      } else if ((newStatus != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) < TIME_BREAK)) {
-        // Обрыва нет
-        fireSensors[i].setStatus(newStatus);
-      }
-
-      /* ПРОВЕРКА НА КЗ */
-      if (newStatus == SENSOR_SHORT_CIRCUIT) {
-        fireSensors[i].setStatus(newStatus);
-      }
-
-      /* ПРОВЕРКА НА ОК */
-      if (newStatus == SENSOR_OK) {
-        fireSensors[i].setStatus(newStatus);
-      }
-
     }
-
+    
   } else if (abs(millis() - timeStartReloading) > TIME_RELOAD) {  // если перезагрузка датчиков выполнилась
     reloadSensors = false;
-    digitalWrite(RELAY_12V_PIN, LOW);   // переводим состояние реле в постоянно вкл
+    stateRelay = true;
+    digitalWrite(RELAY_12V_PIN, HIGH);   // переводим состояние реле в постоянно вкл
+    timeEndReload = millis();
   }
 
+  // Serial.println(fireSensors[0].getStatus());
+
   // если требуется перезагрузка датчиков - перезагружаем
-  if ((reloadSensors) && (digitalRead(RELAY_12V_PIN) == LOW)) {
-    digitalWrite(RELAY_12V_PIN, HIGH);
+  if ((reloadSensors) && (stateRelay)) {
+    digitalWrite(RELAY_12V_PIN, LOW);
+    stateRelay = false;
     timeStartReloading = millis();
   }
 
@@ -344,7 +380,7 @@ void loop() {
     resetSystem = true;
     timeStartReset = millis();
 
-    digitalWrite(RELAY_12V_PIN, HIGH);    // Выключить датчики
+    digitalWrite(RELAY_12V_PIN, LOW);    // Выключить датчики
     digitalWrite(SIREN_PIN, LOW);         // Выключить сирену
     strip.clear();  // очистить RGB
     strip.show();   // вывод изменений на ленту
@@ -352,7 +388,7 @@ void loop() {
 
   // если был запущен сброс системы, спустя TIME_RELOAD - перезагрузка программы
   if (resetSystem && abs(millis() - timeStartReset) > TIME_RELOAD) {
-    digitalWrite(RELAY_12V_PIN, LOW);
+    digitalWrite(RELAY_12V_PIN, HIGH);
     resetFunc();
   }
 
