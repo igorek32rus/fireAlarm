@@ -18,6 +18,7 @@
 #define EXIT_PIN        44    // "Выход"
 
 #define COUNT_SENSORS   16    // Количество датчиков
+#define NUM1_ANALOG     55    // Номер первого пина аналога А0 (для Mega - 55, для UNO - 14)
 #define FIRE_VALUE      100   // Пороговое значение при пожаре
 #define SHORT_CIRCUIT   1000  // Значение от которого будет считаться КЗ
 #define TIME_RELOAD     3500  // Время перезагрузки
@@ -191,7 +192,7 @@ void setup() {
   }
 
   for (byte i = 0; i < COUNT_SENSORS; i++) {
-    fireSensors[i].setPin(i + 54);            // A0 - это 54 пин Arduino Mega. Добавляем все поочередно
+    fireSensors[i].setPin(i + (NUM1_ANALOG - 1));            // A0 - это 54 пин Arduino Mega. Добавляем все поочередно
     fireSensors[i].setState(dataStates[i]);
   }
 
