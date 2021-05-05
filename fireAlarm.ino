@@ -206,6 +206,9 @@ void loop() {
   if (!reloadSensors && !resetSystem) {   // если не выполняется перезагрузка
     if (abs(millis() - timeEndReload) > 5000) {   // ждём 2 сек после вкл реле, чтобы конденсатор напитался
       // читаем все датчики
+
+      bool fireStatus = false;    // была ли сработка на пожар (защита от падения напряжения, чтобы небыло случайного обрыва)
+
       for (byte i = 0; i < COUNT_SENSORS; i++) {
         if (!fireSensors[i].getState()) continue;   // если датчик выключен, переходим к следующему
 
@@ -229,6 +232,7 @@ void loop() {
             fireSensors[i].setStatus(newStatus);
             fireSensors[i].setFireTime();
             reloadSensors = true;
+            fireStatus = true;    // сработал, больше на обрыв не проверяем
             continue;
           } else if ((newStatus == SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) < TIME_FIRE)) {
             // ПОВТОРНОЕ СРАБАТЫВАНИЕ
@@ -238,23 +242,30 @@ void loop() {
             // Время на повторное срабатывание вышло
             fireSensors[i].setStatus(newStatus);
             continue;
+          } else if ((newStatus != SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) < TIME_FIRE)) {
+            continue;
           }
 
-          /* ПРОВЕРКА НА ОБРЫВ */
-          if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_BREAK)) {
-            // запуск проверки на обрыв
-            fireSensors[i].setStatus(newStatus);
-            fireSensors[i].setBreakTime();
-            continue;
-          } else if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) > TIME_BREAK)) {
-            // Обрыв! Время вышло...
-            fireSensors[i].setStatus(SENSOR_BREAK);
-            continue;
-          } else if ((newStatus != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) < TIME_BREAK)) {
-            // Обрыва нет
-            fireSensors[i].setStatus(newStatus);
-            continue;
+
+          if (!fireStatus) {
+            /* ПРОВЕРКА НА ОБРЫВ */
+            if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() != SENSOR_BREAK)) {
+              // запуск проверки на обрыв
+              fireSensors[i].setStatus(newStatus);
+              fireSensors[i].setBreakTime();
+              continue;
+            } else if ((newStatus == SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) > TIME_BREAK)) {
+              // Обрыв! Время вышло...
+              fireSensors[i].setStatus(SENSOR_BREAK);
+              continue;
+            } else if ((newStatus != SENSOR_WAITBREAK) && (fireSensors[i].getStatus() == SENSOR_WAITBREAK) && (abs(millis() - fireSensors[i].getBreakTime()) < TIME_BREAK)) {
+              // Обрыва нет
+              fireSensors[i].setStatus(newStatus);
+              continue;
+            }
           }
+
+
 
           /* ПРОВЕРКА НА КЗ */
           if (newStatus == SENSOR_SHORT_CIRCUIT) {
