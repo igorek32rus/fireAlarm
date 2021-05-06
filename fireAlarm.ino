@@ -237,6 +237,7 @@ void loop() {
           } else if ((newStatus == SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) < TIME_FIRE)) {
             // ПОВТОРНОЕ СРАБАТЫВАНИЕ
             fireSensors[i].setStatus(SENSOR_FIRE);
+            fireStatus = true;    // сработал, больше на обрыв не проверяем
             continue;
           } else if ((newStatus != SENSOR_WAITFIRE) && (fireSensors[i].getStatus() == SENSOR_WAITFIRE) && (abs(millis() - fireSensors[i].getFireTime()) > TIME_FIRE)) {
             // Время на повторное срабатывание вышло
@@ -263,6 +264,8 @@ void loop() {
               fireSensors[i].setStatus(newStatus);
               continue;
             }
+          } else {
+            fireSensors[i].setBreakTime();
           }
 
 
