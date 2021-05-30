@@ -164,7 +164,7 @@ Encoder enc(ENC_S1_PIN, ENC_S2_PIN, ENC_SW_PIN);    // Энкодер
 
 void setup() {
   strip.clear();              // выключить RGB
-  strip.setBrightness(150);    // яркость RGB (0-255)
+  strip.setBrightness(200);    // яркость RGB (0-255)
 
   pinMode(RELAY_12V_PIN, OUTPUT);   // Инициализация реле
   pinMode(SIREN_PIN, OUTPUT);       // Инициализация сирены
