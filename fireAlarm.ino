@@ -27,7 +27,7 @@
 #define TIME_BREAK      3000  // Время ожидания сигнала об обрыве
 
 #define TIME_CHANGE_MODE  250  // Время смены режима в меню (мигание)
-#define PHONE_NUMBER      "+79997051047"  // Номер с которым будет взаимодействие
+#define PHONE_NUMBER      ""  // Номер с которым будет взаимодействие
 
 #define SENSOR_OK             0     // Статус ОК
 #define SENSOR_WAITBREAK      1     // Статус Обрыв (Проверка)
